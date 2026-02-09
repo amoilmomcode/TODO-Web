@@ -277,6 +277,50 @@ async def create_tag(name: str) -> dict[str, Any]:
     return dict(row)  # type: ignore[arg-type]
 
 
+async def get_tags_by_todo_id(todo_id: int) -> list[dict[str, Any]]:
+    """특정 TODO에 연결된 태그 목록을 조회한다.
+
+    Args:
+        todo_id: TODO ID.
+
+    Returns:
+        태그 딕셔너리 리스트.
+    """
+    db = await get_db()
+    cursor = await db.execute(
+        """
+        SELECT t.id, t.name
+        FROM tags t
+        JOIN todo_tags tt ON t.id = tt.tag_id
+        WHERE tt.todo_id = ?
+        ORDER BY t.name
+        """,
+        (todo_id,),
+    )
+    rows = await cursor.fetchall()
+    return [dict(row) for row in rows]
+
+
+async def set_todo_tags(todo_id: int, tag_ids: list[int]) -> None:
+    """TODO의 태그를 일괄 교체한다.
+
+    기존 연결을 모두 삭제한 뒤 새 태그들을 연결한다.
+
+    Args:
+        todo_id: TODO ID.
+        tag_ids: 연결할 태그 ID 목록.
+    """
+    db = await get_db()
+    await db.execute("DELETE FROM todo_tags WHERE todo_id = ?", (todo_id,))
+    for tag_id in tag_ids:
+        await db.execute(
+            "INSERT INTO todo_tags (todo_id, tag_id) VALUES (?, ?)",
+            (todo_id, tag_id),
+        )
+    await db.commit()
+    logger.info("TODO 태그 일괄 교체: todo_id=%s, tag_ids=%s", todo_id, tag_ids)
+
+
 async def add_todo_tag(todo_id: int, tag_id: int) -> bool:
     """TODO에 태그를 연결한다.
 

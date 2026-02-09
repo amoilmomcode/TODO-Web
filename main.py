@@ -6,6 +6,7 @@ from typing import AsyncIterator
 import uvicorn
 from fastapi import FastAPI
 
+from api.routes.todos import router as todos_router
 from db import close_db, init_db
 
 
@@ -18,6 +19,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="TODO Web App", lifespan=lifespan)
+
+app.include_router(todos_router)
 
 
 if __name__ == "__main__":
