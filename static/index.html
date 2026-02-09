@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TODO Web App</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1>TODO Web App</h1>
+  </header>
+
+  <main class="app-main">
+    <!-- 왼쪽 사이드바: 카테고리/태그 관리 + 필터 -->
+    <aside class="sidebar">
+      <!-- 필터 영역 -->
+      <section class="filter-section">
+        <h2>필터</h2>
+
+        <div class="filter-group">
+          <label for="filter-category">카테고리</label>
+          <select id="filter-category">
+            <option value="">전체</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label for="filter-priority">우선순위</label>
+          <select id="filter-priority">
+            <option value="">전체</option>
+            <option value="high">높음</option>
+            <option value="medium">보통</option>
+            <option value="low">낮음</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label for="filter-completed">완료 여부</label>
+          <select id="filter-completed">
+            <option value="">전체</option>
+            <option value="false">미완료</option>
+            <option value="true">완료</option>
+          </select>
+        </div>
+
+        <button type="button" id="btn-apply-filter" class="btn btn-primary">필터 적용</button>
+        <button type="button" id="btn-reset-filter" class="btn btn-secondary">초기화</button>
+      </section>
+
+      <!-- 카테고리 관리 -->
+      <section class="manage-section">
+        <h2>카테고리 관리</h2>
+        <form id="form-add-category" class="inline-form">
+          <input type="text" id="input-category-name" placeholder="새 카테고리" required>
+          <button type="submit" class="btn btn-primary">추가</button>
+        </form>
+        <ul id="category-list" class="manage-list"></ul>
+      </section>
+
+      <!-- 태그 관리 -->
+      <section class="manage-section">
+        <h2>태그 관리</h2>
+        <form id="form-add-tag" class="inline-form">
+          <input type="text" id="input-tag-name" placeholder="새 태그" required>
+          <button type="submit" class="btn btn-primary">추가</button>
+        </form>
+        <ul id="tag-list" class="manage-list"></ul>
+      </section>
+    </aside>
+
+    <!-- 메인 콘텐츠: TODO 입력 폼 + 목록 -->
+    <div class="content">
+      <!-- TODO 입력 폼 -->
+      <section class="todo-form-section">
+        <h2>새 할 일 추가</h2>
+        <form id="form-add-todo">
+          <div class="form-row">
+            <div class="form-group form-group-grow">
+              <label for="input-todo-title">제목 <span class="required">*</span></label>
+              <input type="text" id="input-todo-title" placeholder="할 일을 입력하세요" required>
+            </div>
+            <div class="form-group">
+              <label for="select-todo-priority">우선순위</label>
+              <select id="select-todo-priority">
+                <option value="high">높음</option>
+                <option value="medium" selected>보통</option>
+                <option value="low">낮음</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group form-group-grow">
+              <label for="input-todo-description">설명</label>
+              <textarea id="input-todo-description" placeholder="상세 설명 (선택)" rows="2"></textarea>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="select-todo-category">카테고리</label>
+              <select id="select-todo-category">
+                <option value="">없음</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="input-todo-due-date">마감일</label>
+              <input type="date" id="input-todo-due-date">
+            </div>
+            <div class="form-group form-group-grow">
+              <label for="select-todo-tags">태그</label>
+              <select id="select-todo-tags" multiple>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">추가</button>
+            <button type="reset" class="btn btn-secondary">초기화</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- TODO 목록 -->
+      <section class="todo-list-section">
+        <h2>할 일 목록 <span id="todo-count" class="badge">0</span></h2>
+        <ul id="todo-list" class="todo-list">
+          <!-- JS에서 동적으로 렌더링 -->
+        </ul>
+        <p id="todo-empty-message" class="empty-message">할 일이 없습니다.</p>
+      </section>
+    </div>
+  </main>
+
+  <!-- TODO 수정 모달 -->
+  <dialog id="modal-edit-todo" class="modal">
+    <form id="form-edit-todo" method="dialog">
+      <h2>할 일 수정</h2>
+      <input type="hidden" id="edit-todo-id">
+
+      <div class="form-group">
+        <label for="edit-todo-title">제목 <span class="required">*</span></label>
+        <input type="text" id="edit-todo-title" required>
+      </div>
+
+      <div class="form-group">
+        <label for="edit-todo-description">설명</label>
+        <textarea id="edit-todo-description" rows="3"></textarea>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="edit-todo-priority">우선순위</label>
+          <select id="edit-todo-priority">
+            <option value="high">높음</option>
+            <option value="medium">보통</option>
+            <option value="low">낮음</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="edit-todo-category">카테고리</label>
+          <select id="edit-todo-category">
+            <option value="">없음</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="edit-todo-due-date">마감일</label>
+          <input type="date" id="edit-todo-due-date">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="edit-todo-tags">태그</label>
+        <select id="edit-todo-tags" multiple></select>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">저장</button>
+        <button type="button" id="btn-cancel-edit" class="btn btn-secondary">취소</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="/static/js/api.js"></script>
+  <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>
