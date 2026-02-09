@@ -48,7 +48,7 @@ async def get_todos(
         query += " AND is_completed = ?"
         params.append(is_completed)
 
-    query += " ORDER BY created_at DESC"
+    query += " ORDER BY created_at DESC, id DESC"
 
     cursor = await db.execute(query, params)
     rows = await cursor.fetchall()

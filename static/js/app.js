@@ -10,6 +10,7 @@ import {
   deleteCategory,
   fetchTags,
   createTag,
+  deleteTag,
 } from "./api.js";
 
 // ──────────────────────────────────────────────
@@ -36,31 +37,38 @@ const formAddTag = $("#form-add-tag");
 const inputTagName = $("#input-tag-name");
 const tagList = $("#tag-list");
 
-// TODO 추가 폼
-const formAddTodo = $("#form-add-todo");
-const inputTodoTitle = $("#input-todo-title");
-const inputTodoDescription = $("#input-todo-description");
-const selectTodoPriority = $("#select-todo-priority");
-const selectTodoCategory = $("#select-todo-category");
-const inputTodoDueDate = $("#input-todo-due-date");
-const selectTodoTags = $("#select-todo-tags");
-
 // TODO 목록
 const todoListEl = $("#todo-list");
 const todoCount = $("#todo-count");
 const todoEmptyMessage = $("#todo-empty-message");
+const btnOpenAddModal = $("#btn-open-add-modal");
 
-// 수정 모달
-const modalEditTodo = $("#modal-edit-todo");
-const formEditTodo = $("#form-edit-todo");
-const editTodoId = $("#edit-todo-id");
-const editTodoTitle = $("#edit-todo-title");
-const editTodoDescription = $("#edit-todo-description");
-const editTodoPriority = $("#edit-todo-priority");
-const editTodoCategory = $("#edit-todo-category");
-const editTodoDueDate = $("#edit-todo-due-date");
-const editTodoTags = $("#edit-todo-tags");
-const btnCancelEdit = $("#btn-cancel-edit");
+// 뷰 토글
+const btnViewList = $("#btn-view-list");
+const btnViewCalendar = $("#btn-view-calendar");
+const viewList = $("#view-list");
+const viewCalendar = $("#view-calendar");
+
+// 달력
+const calendarMonthLabel = $("#calendar-month-label");
+const calendarDays = $("#calendar-days");
+const btnPrevMonth = $("#btn-prev-month");
+const btnNextMonth = $("#btn-next-month");
+const btnCalendarToday = $("#btn-calendar-today");
+
+// 통합 모달 (추가/수정)
+const modalTodo = $("#modal-todo");
+const formTodoModal = $("#form-todo-modal");
+const modalTodoTitle = $("#modal-todo-title");
+const modalTodoId = $("#modal-todo-id");
+const modalTodoInputTitle = $("#modal-todo-input-title");
+const modalTodoDescription = $("#modal-todo-description");
+const modalTodoPriority = $("#modal-todo-priority");
+const modalTodoCategory = $("#modal-todo-category");
+const modalTodoDueDate = $("#modal-todo-due-date");
+const modalTodoTags = $("#modal-todo-tags");
+const modalTodoSubmitBtn = $("#modal-todo-submit-btn");
+const btnCancelModal = $("#btn-cancel-modal");
 
 // ──────────────────────────────────────────────
 // 상태
@@ -68,6 +76,10 @@ const btnCancelEdit = $("#btn-cancel-edit");
 
 let categories = [];
 let tags = [];
+let currentViewMode = localStorage.getItem("viewMode") || "list";
+let calendarYear = new Date().getFullYear();
+let calendarMonth = new Date().getMonth(); // 0-indexed
+let cachedTodos = []; // 달력 렌더링용 캐시
 
 // ──────────────────────────────────────────────
 // 유틸리티
@@ -158,7 +170,7 @@ async function loadTags() {
 
 /** 카테고리 셀렉트 박스들을 갱신한다. */
 function updateCategorySelects() {
-  const selects = [filterCategory, selectTodoCategory, editTodoCategory];
+  const selects = [filterCategory, modalTodoCategory];
   for (const sel of selects) {
     const currentVal = sel.value;
     // 첫 번째 옵션(전체/없음) 유지
@@ -178,7 +190,7 @@ function updateCategorySelects() {
 
 /** 태그 멀티셀렉트 박스들을 갱신한다. */
 function updateTagSelects() {
-  const selects = [selectTodoTags, editTodoTags];
+  const selects = [modalTodoTags];
   for (const sel of selects) {
     // 기존 선택된 값 저장
     const selectedValues = Array.from(sel.selectedOptions).map((o) => o.value);
@@ -223,6 +235,7 @@ function renderTagList() {
     const li = document.createElement("li");
     li.innerHTML = `
       <span>${escapeHtml(tag.name)}</span>
+      <button type="button" class="btn-delete-item" data-id="${tag.id}" title="삭제">✕</button>
     `;
     tagList.appendChild(li);
   }
@@ -252,7 +265,9 @@ async function loadTodos() {
   );
   if (!data) return;
 
+  cachedTodos = data;
   renderTodoList(data);
+  renderCalendar();
 }
 
 /** TODO 배열을 받아서 목록 UI를 그린다. */
@@ -319,33 +334,101 @@ function createTodoItem(todo) {
 }
 
 // ──────────────────────────────────────────────
-// TODO 추가
+// 통합 모달 (추가/수정)
 // ──────────────────────────────────────────────
 
-formAddTodo.addEventListener("submit", async (e) => {
+/** 모달을 추가 모드로 연다. */
+function openAddModal() {
+  modalTodoId.value = "";
+  formTodoModal.reset();
+  modalTodoTitle.textContent = "새 할 일 추가";
+  modalTodoSubmitBtn.textContent = "추가";
+  modalTodo.showModal();
+  modalTodoInputTitle.focus();
+}
+
+/** 모달을 수정 모드로 열고, 기존 데이터를 채운다. */
+async function openEditModal(todoId) {
+  const todos = await withErrorHandling(fetchTodos, "데이터를 불러올 수 없습니다");
+  if (!todos) return;
+
+  const todo = todos.find((t) => t.id === todoId);
+  if (!todo) {
+    showToast("해당 할 일을 찾을 수 없습니다", "error");
+    return;
+  }
+
+  modalTodoId.value = todo.id;
+  modalTodoInputTitle.value = todo.title;
+  modalTodoDescription.value = todo.description || "";
+  modalTodoPriority.value = todo.priority;
+  modalTodoCategory.value = todo.category_id ?? "";
+  modalTodoDueDate.value = todo.due_date ? formatDate(todo.due_date) : "";
+
+  // 태그 선택 복원
+  const todoTagIds = (todo.tags || []).map((t) => String(t.id));
+  for (const option of modalTodoTags.options) {
+    option.selected = todoTagIds.includes(option.value);
+  }
+
+  modalTodoTitle.textContent = "할 일 수정";
+  modalTodoSubmitBtn.textContent = "저장";
+  modalTodo.showModal();
+  modalTodoInputTitle.focus();
+}
+
+/** 모달 닫기 */
+function closeModal() {
+  modalTodo.close();
+}
+
+/** 추가 버튼 클릭 */
+btnOpenAddModal.addEventListener("click", openAddModal);
+
+/** 모달 폼 제출 (추가/수정 분기) */
+formTodoModal.addEventListener("submit", async (e) => {
   e.preventDefault();
 
-  const title = inputTodoTitle.value.trim();
-  if (!title) return;
+  const title = modalTodoInputTitle.value.trim();
+  if (!title) {
+    showToast("제목을 입력해주세요", "warning");
+    return;
+  }
 
   const data = {
     title,
-    description: inputTodoDescription.value.trim(),
-    priority: selectTodoPriority.value,
-    categoryId: selectTodoCategory.value ? Number(selectTodoCategory.value) : null,
-    dueDate: inputTodoDueDate.value || null,
-    tagIds: Array.from(selectTodoTags.selectedOptions).map((o) => Number(o.value)),
+    description: modalTodoDescription.value.trim(),
+    priority: modalTodoPriority.value,
+    categoryId: modalTodoCategory.value ? Number(modalTodoCategory.value) : null,
+    dueDate: modalTodoDueDate.value || null,
+    tagIds: Array.from(modalTodoTags.selectedOptions).map((o) => Number(o.value)),
   };
 
-  const result = await withErrorHandling(
-    () => createTodo(data),
-    "할 일을 추가할 수 없습니다",
-  );
+  const isEditMode = !!modalTodoId.value;
 
-  if (result) {
-    showToast("할 일이 추가되었습니다!", "success");
-    formAddTodo.reset();
-    await loadTodos();
+  if (isEditMode) {
+    // 수정 모드
+    const todoId = Number(modalTodoId.value);
+    const result = await withErrorHandling(
+      () => updateTodo(todoId, data),
+      "할 일을 수정할 수 없습니다",
+    );
+    if (result) {
+      showToast("수정되었습니다!", "success");
+      closeModal();
+      await loadTodos();
+    }
+  } else {
+    // 추가 모드
+    const result = await withErrorHandling(
+      () => createTodo(data),
+      "할 일을 추가할 수 없습니다",
+    );
+    if (result) {
+      showToast("할 일이 추가되었습니다!", "success");
+      closeModal();
+      await loadTodos();
+    }
   }
 });
 
@@ -396,80 +479,218 @@ todoListEl.addEventListener("click", async (e) => {
 });
 
 // ──────────────────────────────────────────────
-// 수정 모달
+// 모달 닫기 이벤트
 // ──────────────────────────────────────────────
 
-/** TODO ID로 수정 모달을 열고 현재 값을 채운다. */
-async function openEditModal(todoId) {
-  // 현재 목록에서 해당 아이템의 데이터를 DOM에서 다시 가져오지 않고
-  // API로 최신 데이터를 가져오는 대신, 현재 렌더링된 목록에서 추출하기엔 한계가 있으므로
-  // 간단하게 전체 목록 재조회 후 해당 아이템을 찾는다.
-  const todos = await withErrorHandling(fetchTodos, "데이터를 불러올 수 없습니다");
-  if (!todos) return;
+/** 취소 버튼 클릭 */
+btnCancelModal.addEventListener("click", closeModal);
 
-  const todo = todos.find((t) => t.id === todoId);
-  if (!todo) {
-    showToast("해당 할 일을 찾을 수 없습니다", "error");
-    return;
+/** 오버레이(backdrop) 클릭으로 닫기 */
+modalTodo.addEventListener("click", (e) => {
+  if (e.target === modalTodo) {
+    closeModal();
   }
+});
 
-  editTodoId.value = todo.id;
-  editTodoTitle.value = todo.title;
-  editTodoDescription.value = todo.description || "";
-  editTodoPriority.value = todo.priority;
-  editTodoCategory.value = todo.category_id ?? "";
-  editTodoDueDate.value = todo.due_date ? formatDate(todo.due_date) : "";
-
-  // 태그 선택 복원
-  const todoTagIds = (todo.tags || []).map((t) => String(t.id));
-  for (const option of editTodoTags.options) {
-    option.selected = todoTagIds.includes(option.value);
+/** ESC 키로 닫기 (dialog 기본 동작이지만 명시적으로 처리) */
+modalTodo.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    closeModal();
   }
+});
 
-  modalEditTodo.showModal();
+// ──────────────────────────────────────────────
+// 뷰 토글 (리스트 ↔ 달력)
+// ──────────────────────────────────────────────
+
+/** 뷰 모드를 전환한다. */
+function switchView(mode) {
+  currentViewMode = mode;
+  localStorage.setItem("viewMode", mode);
+
+  btnViewList.classList.toggle("active", mode === "list");
+  btnViewCalendar.classList.toggle("active", mode === "calendar");
+
+  viewList.style.display = mode === "list" ? "" : "none";
+  viewCalendar.style.display = mode === "calendar" ? "" : "none";
+
+  if (mode === "calendar") {
+    renderCalendar();
+  }
 }
 
-/** 수정 폼 제출 */
-formEditTodo.addEventListener("submit", async (e) => {
-  e.preventDefault();
+btnViewList.addEventListener("click", () => switchView("list"));
+btnViewCalendar.addEventListener("click", () => switchView("calendar"));
 
-  const todoId = Number(editTodoId.value);
-  const data = {
-    title: editTodoTitle.value.trim(),
-    description: editTodoDescription.value.trim(),
-    priority: editTodoPriority.value,
-    categoryId: editTodoCategory.value ? Number(editTodoCategory.value) : null,
-    dueDate: editTodoDueDate.value || null,
-    tagIds: Array.from(editTodoTags.selectedOptions).map((o) => Number(o.value)),
-  };
+// ──────────────────────────────────────────────
+// 달력 렌더링
+// ──────────────────────────────────────────────
 
-  if (!data.title) {
-    showToast("제목을 입력해주세요", "warning");
-    return;
+/** 월 라벨을 업데이트한다. */
+function updateMonthLabel() {
+  calendarMonthLabel.textContent = `${calendarYear}년 ${calendarMonth + 1}월`;
+}
+
+/** 달력 그리드를 렌더링한다. */
+function renderCalendar() {
+  updateMonthLabel();
+  calendarDays.innerHTML = "";
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+  // 해당 월의 첫째 날과 마지막 날
+  const firstDay = new Date(calendarYear, calendarMonth, 1);
+  const lastDay = new Date(calendarYear, calendarMonth + 1, 0);
+
+  // 시작 요일 (0=일 ~ 6=토)
+  const startDow = firstDay.getDay();
+  const totalDays = lastDay.getDate();
+
+  // 이전 달 마지막 날
+  const prevLastDay = new Date(calendarYear, calendarMonth, 0).getDate();
+
+  // TODO를 날짜별로 그룹핑
+  const todosByDate = {};
+  for (const todo of cachedTodos) {
+    if (!todo.due_date) continue;
+    const dateKey = formatDate(todo.due_date);
+    if (!todosByDate[dateKey]) todosByDate[dateKey] = [];
+    todosByDate[dateKey].push(todo);
   }
 
-  const result = await withErrorHandling(
-    () => updateTodo(todoId, data),
-    "할 일을 수정할 수 없습니다",
-  );
-
-  if (result) {
-    showToast("수정되었습니다!", "success");
-    modalEditTodo.close();
-    await loadTodos();
+  // 이전 달 날짜 채우기
+  for (let i = startDow - 1; i >= 0; i--) {
+    const day = prevLastDay - i;
+    const prevMonth = calendarMonth - 1;
+    const prevYear = prevMonth < 0 ? calendarYear - 1 : calendarYear;
+    const actualMonth = prevMonth < 0 ? 12 : prevMonth + 1;
+    const dateStr = `${prevYear}-${String(actualMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const todos = todosByDate[dateStr] || [];
+    const dow = new Date(prevYear, actualMonth - 1, day).getDay();
+    calendarDays.appendChild(createDayCell(day, dateStr, true, todayStr, dow, todos));
   }
+
+  // 이번 달 날짜 채우기
+  for (let day = 1; day <= totalDays; day++) {
+    const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const dow = (startDow + day - 1) % 7;
+    const todos = todosByDate[dateStr] || [];
+    calendarDays.appendChild(createDayCell(day, dateStr, false, todayStr, dow, todos));
+  }
+
+  // 다음 달 날짜 채우기 (6주 맞추기)
+  const cellsSoFar = startDow + totalDays;
+  const totalCells = cellsSoFar <= 35 ? 35 : 42;
+  const remaining = totalCells - cellsSoFar;
+  for (let day = 1; day <= remaining; day++) {
+    const nextMonth = calendarMonth + 1;
+    const nextYear = nextMonth > 11 ? calendarYear + 1 : calendarYear;
+    const actualMonth = nextMonth > 11 ? 1 : nextMonth + 1;
+    const dateStr = `${nextYear}-${String(actualMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const todos = todosByDate[dateStr] || [];
+    const dow = new Date(nextYear, actualMonth - 1, day).getDay();
+    calendarDays.appendChild(createDayCell(day, dateStr, true, todayStr, dow, todos));
+  }
+
+}
+
+/** 날짜 셀 하나를 생성한다. */
+function createDayCell(day, dateStr, isOtherMonth, todayStr, dow, todos = []) {
+  const cell = document.createElement("div");
+  cell.className = "calendar-day";
+  cell.dataset.date = dateStr;
+
+  if (isOtherMonth) cell.classList.add("other-month");
+  if (dateStr === todayStr) cell.classList.add("today");
+  if (dow === 0) cell.classList.add("sunday");
+  if (dow === 6) cell.classList.add("saturday");
+
+  // 날짜 숫자
+  const numberEl = document.createElement("div");
+  numberEl.className = "calendar-day-number";
+  numberEl.textContent = day;
+  cell.appendChild(numberEl);
+
+  // TODO 목록
+  if (todos.length > 0) {
+    const listEl = document.createElement("div");
+    listEl.className = "calendar-todo-list";
+
+    const maxShow = 3;
+    const showTodos = todos.slice(0, maxShow);
+
+    for (const todo of showTodos) {
+      const item = document.createElement("div");
+      item.className = `calendar-todo-item priority-${todo.priority}`;
+      if (todo.is_completed) item.classList.add("completed");
+      item.textContent = todo.title;
+      item.title = todo.title; // 툴팁
+      item.dataset.todoId = todo.id;
+
+      // TODO 클릭 → 수정 모달
+      item.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openEditModal(Number(todo.id));
+      });
+
+      listEl.appendChild(item);
+    }
+
+    // 더보기 표시
+    if (todos.length > maxShow) {
+      const more = document.createElement("div");
+      more.className = "calendar-todo-more";
+      more.textContent = `+${todos.length - maxShow}개 더`;
+      listEl.appendChild(more);
+    }
+
+    cell.appendChild(listEl);
+  }
+
+  // 날짜 클릭 → 추가 모달 (마감일 자동 세팅)
+  cell.addEventListener("click", () => {
+    openAddModalWithDate(dateStr);
+  });
+
+  return cell;
+}
+
+/** 마감일이 세팅된 추가 모달을 연다. */
+function openAddModalWithDate(dateStr) {
+  modalTodoId.value = "";
+  formTodoModal.reset();
+  modalTodoTitle.textContent = "새 할 일 추가";
+  modalTodoSubmitBtn.textContent = "추가";
+  modalTodoDueDate.value = dateStr;
+  modalTodo.showModal();
+  modalTodoInputTitle.focus();
+}
+
+// 달력 네비게이션
+btnPrevMonth.addEventListener("click", () => {
+  calendarMonth--;
+  if (calendarMonth < 0) {
+    calendarMonth = 11;
+    calendarYear--;
+  }
+  renderCalendar();
 });
 
-/** 수정 취소 */
-btnCancelEdit.addEventListener("click", () => {
-  modalEditTodo.close();
+btnNextMonth.addEventListener("click", () => {
+  calendarMonth++;
+  if (calendarMonth > 11) {
+    calendarMonth = 0;
+    calendarYear++;
+  }
+  renderCalendar();
 });
 
-/** 모달 바깥 클릭으로 닫기 */
-modalEditTodo.addEventListener("click", (e) => {
-  if (e.target === modalEditTodo) {
-    modalEditTodo.close();
-  }
+btnCalendarToday.addEventListener("click", () => {
+  const now = new Date();
+  calendarYear = now.getFullYear();
+  calendarMonth = now.getMonth();
+  renderCalendar();
 });
 
 // ──────────────────────────────────────────────
@@ -533,6 +754,26 @@ categoryList.addEventListener("click", async (e) => {
 // 태그 관리
 // ──────────────────────────────────────────────
 
+tagList.addEventListener("click", async (e) => {
+  const btn = e.target.closest(".btn-delete-item");
+  if (!btn) return;
+
+  const id = Number(btn.dataset.id);
+  const tag = tags.find((t) => t.id === id);
+  if (!confirm(`"${tag?.name}" 태그를 삭제할까요?`)) return;
+
+  const result = await withErrorHandling(
+    () => deleteTag(id),
+    "태그를 삭제할 수 없습니다",
+  );
+
+  if (result) {
+    showToast("태그가 삭제되었습니다", "success");
+    await loadTags();
+    await loadTodos(); // 태그 정보 갱신
+  }
+});
+
 formAddTag.addEventListener("submit", async (e) => {
   e.preventDefault();
 
@@ -556,6 +797,9 @@ formAddTag.addEventListener("submit", async (e) => {
 // ──────────────────────────────────────────────
 
 async function init() {
+  // 저장된 뷰 모드 복원
+  switchView(currentViewMode);
+
   // 카테고리, 태그를 먼저 로드 (셀렉트 박스에 필요)
   await Promise.all([loadCategories(), loadTags()]);
   // 그 다음 TODO 목록 로드

@@ -175,3 +175,12 @@ export async function createTag(name) {
     body: JSON.stringify({ name }),
   });
 }
+
+/**
+ * 태그 삭제.
+ * @param {number} id - 태그 ID
+ * @returns {Promise<Object>} 삭제 결과 메시지
+ */
+export async function deleteTag(id) {
+  return request(`${BASE_URL}/tags/${id}`, { method: "DELETE" });
+}

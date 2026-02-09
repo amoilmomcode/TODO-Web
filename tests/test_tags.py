@@ -203,12 +203,11 @@ async def test_delete_todo_removes_tag_associations(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-@pytest.mark.asyncio
 async def test_todo_with_nonexistent_tags(client: AsyncClient):
-    """존재하지 않는 태그 ID로 TODO 생성 시 에러가 발생하는지 확인한다.
-    
-    NOTE: 현재 API에서는 IntegrityError를 처리하지 않아 500 에러가 발생합니다.
-    프로덕션 환경에서는 에러 핸들러를 추가하여 400 에러로 변환해야 합니다.
-    이 테스트는 향후 개선이 필요한 부분을 표시하기 위해 skip합니다.
-    """
-    pytest.skip("API에 IntegrityError 핸들러 구현 필요")
+    """존재하지 않는 태그 ID로 TODO 생성 시 400 에러가 발생하는지 확인한다."""
+    resp = await client.post(
+        "/api/todos",
+        json={"title": "태그 테스트", "tagIds": [99999]},
+    )
+    assert resp.status_code == 400
+    assert "유효하지 않은 태그 ID" in resp.json()["detail"]

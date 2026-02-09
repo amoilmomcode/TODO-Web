@@ -85,7 +85,7 @@ async def test_list_todos_multiple_filters(
 ):
     """여러 필터를 동시에 적용한 TODO 목록 조회를 확인한다."""
     # 다양한 조건의 TODO 생성
-    await client.post(
+    completed_todo = await client.post(
         "/api/todos",
         json={
             "title": "완료된 높음 우선순위 업무",
@@ -93,7 +93,7 @@ async def test_list_todos_multiple_filters(
             "category_id": sample_category["id"],
         },
     )
-    high_incomplete_todo = await client.post(
+    await client.post(
         "/api/todos",
         json={
             "title": "미완료 높음 우선순위 업무",
@@ -102,8 +102,7 @@ async def test_list_todos_multiple_filters(
         },
     )
     # 첫 번째 TODO 완료 처리
-    completed_response = await client.get("/api/todos")
-    completed_id = completed_response.json()[0]["id"]
+    completed_id = completed_todo.json()["id"]
     await client.patch(f"/api/todos/{completed_id}", json={"is_completed": True})
 
     await client.post(

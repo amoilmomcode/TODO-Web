@@ -69,115 +69,91 @@
       </section>
     </aside>
 
-    <!-- 메인 콘텐츠: TODO 입력 폼 + 목록 -->
+    <!-- 메인 콘텐츠: TODO 목록 -->
     <div class="content">
-      <!-- TODO 입력 폼 -->
-      <section class="todo-form-section">
-        <h2>새 할 일 추가</h2>
-        <form id="form-add-todo">
-          <div class="form-row">
-            <div class="form-group form-group-grow">
-              <label for="input-todo-title">제목 <span class="required">*</span></label>
-              <input type="text" id="input-todo-title" placeholder="할 일을 입력하세요" required>
-            </div>
-            <div class="form-group">
-              <label for="select-todo-priority">우선순위</label>
-              <select id="select-todo-priority">
-                <option value="high">높음</option>
-                <option value="medium" selected>보통</option>
-                <option value="low">낮음</option>
-              </select>
-            </div>
-          </div>
+      <!-- 뷰 토글 -->
+      <div class="view-toggle">
+        <button type="button" id="btn-view-list" class="view-toggle-btn active" data-view="list">📋 리스트</button>
+        <button type="button" id="btn-view-calendar" class="view-toggle-btn" data-view="calendar">📅 달력</button>
+      </div>
 
-          <div class="form-row">
-            <div class="form-group form-group-grow">
-              <label for="input-todo-description">설명</label>
-              <textarea id="input-todo-description" placeholder="상세 설명 (선택)" rows="2"></textarea>
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="select-todo-category">카테고리</label>
-              <select id="select-todo-category">
-                <option value="">없음</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="input-todo-due-date">마감일</label>
-              <input type="date" id="input-todo-due-date">
-            </div>
-            <div class="form-group form-group-grow">
-              <label for="select-todo-tags">태그</label>
-              <select id="select-todo-tags" multiple>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary">추가</button>
-            <button type="reset" class="btn btn-secondary">초기화</button>
-          </div>
-        </form>
-      </section>
-
-      <!-- TODO 목록 -->
-      <section class="todo-list-section">
-        <h2>할 일 목록 <span id="todo-count" class="badge">0</span></h2>
+      <!-- TODO 목록 (리스트 뷰) -->
+      <section id="view-list" class="todo-list-section">
+        <div class="todo-list-header">
+          <h2>할 일 목록 <span id="todo-count" class="badge">0</span></h2>
+          <button type="button" id="btn-open-add-modal" class="btn btn-primary">+ 할 일 추가</button>
+        </div>
         <ul id="todo-list" class="todo-list">
           <!-- JS에서 동적으로 렌더링 -->
         </ul>
         <p id="todo-empty-message" class="empty-message">할 일이 없습니다.</p>
       </section>
+
+      <!-- 달력 뷰 -->
+      <section id="view-calendar" class="calendar-section" style="display:none;">
+        <div class="calendar-header">
+          <button type="button" id="btn-prev-month" class="btn btn-icon btn-secondary">◀</button>
+          <h2 id="calendar-month-label">2025년 1월</h2>
+          <button type="button" id="btn-next-month" class="btn btn-icon btn-secondary">▶</button>
+          <button type="button" id="btn-calendar-today" class="btn btn-secondary btn-sm">오늘</button>
+        </div>
+        <div class="calendar-grid">
+          <div class="calendar-weekdays">
+            <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+          </div>
+          <div id="calendar-days" class="calendar-days">
+            <!-- JS에서 동적으로 렌더링 -->
+          </div>
+        </div>
+      </section>
     </div>
   </main>
 
-  <!-- TODO 수정 모달 -->
-  <dialog id="modal-edit-todo" class="modal">
-    <form id="form-edit-todo" method="dialog">
-      <h2>할 일 수정</h2>
-      <input type="hidden" id="edit-todo-id">
+  <!-- TODO 추가/수정 통합 모달 -->
+  <dialog id="modal-todo" class="modal">
+    <form id="form-todo-modal">
+      <h2 id="modal-todo-title">새 할 일 추가</h2>
+      <input type="hidden" id="modal-todo-id">
 
       <div class="form-group">
-        <label for="edit-todo-title">제목 <span class="required">*</span></label>
-        <input type="text" id="edit-todo-title" required>
+        <label for="modal-todo-input-title">제목 <span class="required">*</span></label>
+        <input type="text" id="modal-todo-input-title" placeholder="할 일을 입력하세요" required>
       </div>
 
       <div class="form-group">
-        <label for="edit-todo-description">설명</label>
-        <textarea id="edit-todo-description" rows="3"></textarea>
+        <label for="modal-todo-description">설명</label>
+        <textarea id="modal-todo-description" placeholder="상세 설명 (선택)" rows="3"></textarea>
       </div>
 
       <div class="form-row">
         <div class="form-group">
-          <label for="edit-todo-priority">우선순위</label>
-          <select id="edit-todo-priority">
+          <label for="modal-todo-priority">우선순위</label>
+          <select id="modal-todo-priority">
             <option value="high">높음</option>
-            <option value="medium">보통</option>
+            <option value="medium" selected>보통</option>
             <option value="low">낮음</option>
           </select>
         </div>
         <div class="form-group">
-          <label for="edit-todo-category">카테고리</label>
-          <select id="edit-todo-category">
+          <label for="modal-todo-category">카테고리</label>
+          <select id="modal-todo-category">
             <option value="">없음</option>
           </select>
         </div>
         <div class="form-group">
-          <label for="edit-todo-due-date">마감일</label>
-          <input type="date" id="edit-todo-due-date">
+          <label for="modal-todo-due-date">마감일</label>
+          <input type="date" id="modal-todo-due-date">
         </div>
       </div>
 
       <div class="form-group">
-        <label for="edit-todo-tags">태그</label>
-        <select id="edit-todo-tags" multiple></select>
+        <label for="modal-todo-tags">태그</label>
+        <select id="modal-todo-tags" multiple></select>
       </div>
 
       <div class="form-actions">
-        <button type="submit" class="btn btn-primary">저장</button>
-        <button type="button" id="btn-cancel-edit" class="btn btn-secondary">취소</button>
+        <button type="submit" class="btn btn-primary" id="modal-todo-submit-btn">추가</button>
+        <button type="button" id="btn-cancel-modal" class="btn btn-secondary">취소</button>
       </div>
     </form>
   </dialog>

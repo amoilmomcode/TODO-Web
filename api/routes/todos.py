@@ -82,7 +82,13 @@ async def add_todo(body: TodoCreate) -> TodoResponse:
 
     # 태그 연결
     if body.tag_ids:
-        await set_todo_tags(row["id"], body.tag_ids)
+        try:
+            await set_todo_tags(row["id"], body.tag_ids)
+        except IntegrityError:
+            raise HTTPException(
+                status_code=400,
+                detail="유효하지 않은 태그 ID가 포함되어 있습니다",
+            )
 
     return await _build_response(row)
 
@@ -135,7 +141,13 @@ async def modify_todo(todo_id: int, body: TodoUpdate) -> TodoResponse:
 
     # 태그 교체
     if tag_ids is not None:
-        await set_todo_tags(todo_id, tag_ids)
+        try:
+            await set_todo_tags(todo_id, tag_ids)
+        except IntegrityError:
+            raise HTTPException(
+                status_code=400,
+                detail="유효하지 않은 태그 ID가 포함되어 있습니다",
+            )
 
     return await _build_response(row)
 

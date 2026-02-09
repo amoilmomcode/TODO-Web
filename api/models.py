@@ -23,6 +23,9 @@ class Priority(str, Enum):
 class TodoCreate(BaseModel):
     """할 일 생성 요청 모델.
 
+    camelCase alias를 지원하여 프론트엔드에서 categoryId 등으로
+    요청해도 정상 처리된다.
+
     Attributes:
         title: 할 일 제목 (필수, 1~200자).
         description: 상세 설명.
@@ -32,16 +35,21 @@ class TodoCreate(BaseModel):
         tag_ids: 연결할 태그 ID 목록.
     """
 
+    model_config = {"populate_by_name": True}
+
     title: str = Field(..., min_length=1, max_length=200)
-    description: str = Field(default="")
+    description: str = Field(default="", max_length=5000)
     priority: Priority = Field(default=Priority.MEDIUM)
-    category_id: Optional[int] = Field(default=None)
-    due_date: Optional[date] = Field(default=None)
-    tag_ids: list[int] = Field(default_factory=list)
+    category_id: Optional[int] = Field(default=None, alias="categoryId")
+    due_date: Optional[date] = Field(default=None, alias="dueDate")
+    tag_ids: list[int] = Field(default_factory=list, alias="tagIds")
 
 
 class TodoUpdate(BaseModel):
     """할 일 수정 요청 모델 (PATCH용, 모두 Optional).
+
+    camelCase alias를 지원하여 프론트엔드에서 isCompleted 등으로
+    요청해도 정상 처리된다.
 
     Attributes:
         title: 할 일 제목 (1~200자).
@@ -53,13 +61,23 @@ class TodoUpdate(BaseModel):
         tag_ids: 연결할 태그 ID 목록.
     """
 
+    model_config = {"populate_by_name": True}
+
     title: Optional[str] = Field(default=None, min_length=1, max_length=200)
-    description: Optional[str] = Field(default=None)
+    description: Optional[str] = Field(default=None, max_length=5000)
     priority: Optional[Priority] = Field(default=None)
-    is_completed: Optional[bool] = Field(default=None)
-    category_id: Optional[int] = Field(default=None)
-    due_date: Optional[date] = Field(default=None)
-    tag_ids: Optional[list[int]] = Field(default=None)
+    is_completed: Optional[bool] = Field(
+        default=None, alias="isCompleted"
+    )
+    category_id: Optional[int] = Field(
+        default=None, alias="categoryId"
+    )
+    due_date: Optional[date] = Field(
+        default=None, alias="dueDate"
+    )
+    tag_ids: Optional[list[int]] = Field(
+        default=None, alias="tagIds"
+    )
 
 
 class TagResponse(BaseModel):
