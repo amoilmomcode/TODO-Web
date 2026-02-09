@@ -121,12 +121,42 @@ async def update_todo(todo_id: int, **data: Any) -> dict[str, Any] | None:
 
     db = await get_db()
 
-    set_clause = ", ".join(f"{k} = ?" for k in fields)
-    params = list(fields.values()) + [todo_id]
+    # 필드별 개별 업데이트 (f-string SQL 조합 방지)
+    if "title" in fields:
+        await db.execute(
+            "UPDATE todos SET title = ? WHERE id = ?",
+            (fields["title"], todo_id),
+        )
+    if "description" in fields:
+        await db.execute(
+            "UPDATE todos SET description = ? WHERE id = ?",
+            (fields["description"], todo_id),
+        )
+    if "priority" in fields:
+        await db.execute(
+            "UPDATE todos SET priority = ? WHERE id = ?",
+            (fields["priority"], todo_id),
+        )
+    if "is_completed" in fields:
+        await db.execute(
+            "UPDATE todos SET is_completed = ? WHERE id = ?",
+            (fields["is_completed"], todo_id),
+        )
+    if "category_id" in fields:
+        await db.execute(
+            "UPDATE todos SET category_id = ? WHERE id = ?",
+            (fields["category_id"], todo_id),
+        )
+    if "due_date" in fields:
+        await db.execute(
+            "UPDATE todos SET due_date = ? WHERE id = ?",
+            (fields["due_date"], todo_id),
+        )
 
+    # updated_at 타임스탬프 갱신
     await db.execute(
-        f"UPDATE todos SET {set_clause} WHERE id = ?",  # noqa: S608
-        params,
+        "UPDATE todos SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (todo_id,),
     )
     await db.commit()
     logger.info("TODO 수정 완료: id=%s, fields=%s", todo_id, list(fields.keys()))
@@ -235,6 +265,30 @@ async def delete_category(category_id: int) -> bool:
 # ---------------------------------------------------------------------------
 # 태그 관련
 # ---------------------------------------------------------------------------
+
+
+async def delete_tag(tag_id: int) -> bool:
+    """태그를 삭제한다.
+
+    연결된 todo_tags 레코드는 ON DELETE CASCADE에 의해 자동 삭제된다.
+
+    Args:
+        tag_id: 삭제할 태그 ID.
+
+    Returns:
+        삭제 성공 여부. 해당 ID가 없으면 False.
+    """
+    db = await get_db()
+
+    cursor = await db.execute("DELETE FROM tags WHERE id = ?", (tag_id,))
+    await db.commit()
+
+    deleted = cursor.rowcount > 0
+    if deleted:
+        logger.info("태그 삭제 완료: id=%s", tag_id)
+    else:
+        logger.warning("삭제할 태그를 찾지 못함: id=%s", tag_id)
+    return deleted
 
 
 async def get_tags() -> list[dict[str, Any]]:

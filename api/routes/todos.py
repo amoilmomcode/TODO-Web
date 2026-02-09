@@ -3,9 +3,11 @@
 import logging
 from typing import Optional
 
+from aiosqlite import IntegrityError
 from fastapi import APIRouter, HTTPException, Query
 
 from api.models import Priority, TodoCreate, TodoResponse, TodoUpdate
+from db.connection import get_db
 from db.queries import (
     create_todo,
     delete_todo,
@@ -62,13 +64,21 @@ async def add_todo(body: TodoCreate) -> TodoResponse:
     Returns:
         생성된 TODO 응답.
     """
-    row = await create_todo(
-        title=body.title,
-        description=body.description,
-        priority=body.priority.value,
-        category_id=body.category_id,
-        due_date=str(body.due_date) if body.due_date else None,
-    )
+    try:
+        row = await create_todo(
+            title=body.title,
+            description=body.description,
+            priority=body.priority.value,
+            category_id=body.category_id,
+            due_date=str(body.due_date) if body.due_date else None,
+        )
+    except IntegrityError as e:
+        if "FOREIGN KEY constraint failed" in str(e):
+            raise HTTPException(
+                status_code=400,
+                detail="유효하지 않은 카테고리 ID입니다",
+            )
+        raise
 
     # 태그 연결
     if body.tag_ids:
@@ -104,11 +114,17 @@ async def modify_todo(todo_id: int, body: TodoUpdate) -> TodoResponse:
         if "due_date" in update_data and update_data["due_date"] is not None:
             update_data["due_date"] = str(update_data["due_date"])
 
-        row = await update_todo(todo_id, **update_data)
+        try:
+            row = await update_todo(todo_id, **update_data)
+        except IntegrityError as e:
+            if "FOREIGN KEY constraint failed" in str(e):
+                raise HTTPException(
+                    status_code=400,
+                    detail="유효하지 않은 카테고리 ID입니다",
+                )
+            raise
     else:
         # 업데이트 필드 없이 태그만 변경하는 경우, 기존 데이터 확인
-        from db.connection import get_db
-
         db = await get_db()
         cursor = await db.execute("SELECT * FROM todos WHERE id = ?", (todo_id,))
         r = await cursor.fetchone()
@@ -124,15 +140,12 @@ async def modify_todo(todo_id: int, body: TodoUpdate) -> TodoResponse:
     return await _build_response(row)
 
 
-@router.delete("/{todo_id}", status_code=200)
-async def remove_todo(todo_id: int) -> dict:
+@router.delete("/{todo_id}", status_code=204)
+async def remove_todo(todo_id: int) -> None:
     """할 일을 삭제한다.
 
     Args:
         todo_id: 삭제할 TODO ID.
-
-    Returns:
-        삭제 결과 메시지.
 
     Raises:
         HTTPException: 해당 ID의 TODO가 없을 때 404.
@@ -140,4 +153,3 @@ async def remove_todo(todo_id: int) -> dict:
     deleted = await delete_todo(todo_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="해당 TODO를 찾을 수 없습니다")
-    return {"message": "삭제 완료", "id": todo_id}
