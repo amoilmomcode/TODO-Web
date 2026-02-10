@@ -355,6 +355,27 @@ async def get_tags_by_todo_id(todo_id: int) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
+async def validate_tag_ids(tag_ids: list[int]) -> list[int]:
+    """태그 ID 목록이 모두 존재하는지 검증한다.
+
+    Args:
+        tag_ids: 검증할 태그 ID 목록.
+
+    Returns:
+        존재하지 않는 태그 ID 목록. 모두 유효하면 빈 리스트.
+    """
+    if not tag_ids:
+        return []
+    db = await get_db()
+    placeholders = ",".join("?" for _ in tag_ids)
+    cursor = await db.execute(
+        f"SELECT id FROM tags WHERE id IN ({placeholders})",  # noqa: S608
+        tag_ids,
+    )
+    existing = {row["id"] for row in await cursor.fetchall()}
+    return [tid for tid in tag_ids if tid not in existing]
+
+
 async def set_todo_tags(todo_id: int, tag_ids: list[int]) -> None:
     """TODO의 태그를 일괄 교체한다.
 
@@ -363,7 +384,16 @@ async def set_todo_tags(todo_id: int, tag_ids: list[int]) -> None:
     Args:
         todo_id: TODO ID.
         tag_ids: 연결할 태그 ID 목록.
+
+    Raises:
+        ValueError: 존재하지 않는 태그 ID가 포함된 경우.
     """
+    invalid_ids = await validate_tag_ids(tag_ids)
+    if invalid_ids:
+        raise ValueError(
+            f"유효하지 않은 태그 ID가 포함되어 있습니다: {invalid_ids}"
+        )
+
     db = await get_db()
     await db.execute("DELETE FROM todo_tags WHERE todo_id = ?", (todo_id,))
     for tag_id in tag_ids:

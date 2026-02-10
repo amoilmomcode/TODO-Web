@@ -15,6 +15,7 @@ from db.queries import (
     get_todos,
     set_todo_tags,
     update_todo,
+    validate_tag_ids,
 )
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,15 @@ async def add_todo(body: TodoCreate) -> TodoResponse:
     Returns:
         생성된 TODO 응답.
     """
+    # 태그 검증을 TODO INSERT 전에 수행 (고아 레코드 방지)
+    if body.tag_ids:
+        invalid_ids = await validate_tag_ids(body.tag_ids)
+        if invalid_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=f"유효하지 않은 태그 ID가 포함되어 있습니다: {invalid_ids}",
+            )
+
     try:
         row = await create_todo(
             title=body.title,
@@ -80,15 +90,9 @@ async def add_todo(body: TodoCreate) -> TodoResponse:
             )
         raise
 
-    # 태그 연결
+    # 태그 연결 (이미 검증 완료)
     if body.tag_ids:
-        try:
-            await set_todo_tags(row["id"], body.tag_ids)
-        except IntegrityError:
-            raise HTTPException(
-                status_code=400,
-                detail="유효하지 않은 태그 ID가 포함되어 있습니다",
-            )
+        await set_todo_tags(row["id"], body.tag_ids)
 
     return await _build_response(row)
 
@@ -110,6 +114,15 @@ async def modify_todo(todo_id: int, body: TodoUpdate) -> TodoResponse:
     # tag_ids는 별도 처리하므로 분리
     update_data = body.model_dump(exclude_unset=True)
     tag_ids = update_data.pop("tag_ids", None)
+
+    # 태그 검증을 UPDATE 전에 수행 (고아 상태 방지)
+    if tag_ids is not None and tag_ids:
+        invalid_ids = await validate_tag_ids(tag_ids)
+        if invalid_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=f"유효하지 않은 태그 ID가 포함되어 있습니다: {invalid_ids}",
+            )
 
     # TODO 필드 업데이트
     if update_data:
@@ -139,15 +152,9 @@ async def modify_todo(todo_id: int, body: TodoUpdate) -> TodoResponse:
     if row is None:
         raise HTTPException(status_code=404, detail="해당 TODO를 찾을 수 없습니다")
 
-    # 태그 교체
+    # 태그 교체 (이미 검증 완료)
     if tag_ids is not None:
-        try:
-            await set_todo_tags(todo_id, tag_ids)
-        except IntegrityError:
-            raise HTTPException(
-                status_code=400,
-                detail="유효하지 않은 태그 ID가 포함되어 있습니다",
-            )
+        await set_todo_tags(todo_id, tag_ids)
 
     return await _build_response(row)
 
